@@ -1,0 +1,44 @@
+-- Dodanie kolumny BESTSELLER do tabeli BOOKS
+ALTER TABLE BOOKS
+    ADD COLUMN BESTSELLER BOOLEAN DEFAULT 0;
+
+DELIMITER $$
+-- Stworzenie procedury
+CREATE PROCEDURE UpdateBestsellers()
+BEGIN
+    DECLARE bookID INT;
+    DECLARE monthlyRentCount INT;
+
+    DECLARE done BOOLEAN DEFAULT FALSE;
+    DECLARE cur CURSOR FOR
+        SELECT b.BOOK_ID, COUNT(r.RENT_ID) AS MonthlyRentCount
+        FROM BOOKS b
+                 LEFT JOIN RENTS r ON b.BOOK_ID = r.BOOK_ID
+        WHERE MONTH(r.RENT_DATE) = MONTH(CURDATE()) AND YEAR(r.RENT_DATE) = YEAR(CURDATE())
+        GROUP BY b.BOOK_ID;
+
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+    OPEN cur;
+
+    read_loop: LOOP
+        FETCH cur INTO bookID, monthlyRentCount;
+        IF done THEN
+            LEAVE read_loop;
+        END IF;
+
+        IF monthlyRentCount > 2 THEN
+            UPDATE BOOKS SET BESTSELLER = TRUE WHERE BOOK_ID = bookID;
+        ELSE
+            UPDATE BOOKS SET BESTSELLER = FALSE WHERE BOOK_ID = bookID;
+        END IF;
+    END LOOP;
+
+    CLOSE cur;
+END $$
+
+DELIMITER ;
+
+SELECT * FROM BOOKS;
+
+CALL UpdateBestsellers();
